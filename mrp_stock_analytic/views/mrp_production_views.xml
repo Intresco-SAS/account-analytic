@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="mrp_production_form_view" model="ir.ui.view">
+        <field name="name">mrp.production.form.mrp.stock.analytic</field>
+        <field name="model">mrp.production</field>
+        <field name="inherit_id" ref="mrp_account.mrp_production_form_view_inherited" />
+        <field name="arch" type="xml">
+            <!-- Add analytic_distribution field after product_id -->
+            <xpath expr="//page[@name='miscellaneous']/group/group[2]" position="inside">
+                <field name="analytic_distribution" widget="analytic_distribution"
+                    groups="analytic.group_analytic_accounting"
+                    options="{'product_field': 'product_id', 'business_domain': 'manufacturing_order'}"
+                    readonly="state in ('done', 'cancel')"/>
+            </xpath>
+            <!-- Add button to view analytic accounts -->
+            <!-- <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="object"
+                    name="action_view_analytic_accounts"
+                    class="oe_stat_button" 
+                    icon="fa-bar-chart"
+                    groups="analytic.group_analytic_accounting"
+                    invisible="not analytic_account_ids">
+                    <field name="analytic_account_ids" invisible="1"/>
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Analytic</span>
+                    </div>
+                </button>
+            </xpath> -->
+        </field>
+    </record>
+
+    <record id="mrp_production_tree_view" model="ir.ui.view">
+        <field name="name">mrp.production.tree.mrp.stock.analytic</field>
+        <field name="model">mrp.production</field>
+        <field name="inherit_id" ref="mrp.mrp_production_tree_view" />
+        <field name="arch" type="xml">
+            <field name="date_start" position="after">
+                <field name="analytic_distribution" 
+                    widget="analytic_distribution"
+                    groups="analytic.group_analytic_accounting"
+                    readonly="state in ('done', 'cancel')"
+                    optional="hide"/>
+            </field>
+        </field>
+    </record>
+</odoo>
