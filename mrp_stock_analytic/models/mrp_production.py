@@ -22,19 +22,26 @@ class MrpProduction(models.Model):
         store=True,
     )
 
-    @api.depends("product_id")
+    @api.depends("project_id", "project_id.account_id", "product_id")
     def _compute_analytic_distribution(self):
-        """Compute analytic distribution from distribution model."""
+        """Compute analytic distribution from project first, fallback to product model."""
         for record in self:
-            record.analytic_distribution = self.env[
-                "account.analytic.distribution.model"
-            ]._get_distribution(
-                {
-                    "product_id": record.product_id.id,
-                    "product_categ_id": record.product_id.categ_id.id,
-                    "company_id": record.company_id.id,
+            # Priority 1: Calculate from project's analytic account
+            if record.project_id and record.project_id.account_id:
+                record.analytic_distribution = {
+                    str(record.project_id.account_id.id): 100.0
                 }
-            )
+            # Priority 2: Fallback to distribution model based on product
+            else:
+                record.analytic_distribution = self.env[
+                    "account.analytic.distribution.model"
+                ]._get_distribution(
+                    {
+                        "product_id": record.product_id.id,
+                        "product_categ_id": record.product_id.categ_id.id,
+                        "company_id": record.company_id.id,
+                    }
+                )
 
     @api.depends("analytic_distribution")
     def _compute_analytic_account_ids(self):
@@ -97,6 +104,52 @@ class MrpProduction(models.Model):
                     production.move_finished_ids.write(
                         {"analytic_distribution": production.analytic_distribution}
                     )
+        return res
+
+    def _get_move_raw_values(
+        self, product, product_uom_qty, product_uom, operation_id=False, bom_line=False
+    ):
+        """Override to include analytic_distribution in raw material moves."""
+        res = super()._get_move_raw_values(
+            product, product_uom_qty, product_uom, operation_id, bom_line
+        )
+        # Add analytic distribution to the move values
+        if self.analytic_distribution:
+            res["analytic_distribution"] = self.analytic_distribution
+        return res
+
+    def _get_move_finished_values(
+        self,
+        product_id,
+        product_uom_qty,
+        product_uom,
+        operation_id=False,
+        byproduct_id=False,
+        cost_share=0,
+    ):
+        """Override to include analytic_distribution in finished product moves."""
+        res = super()._get_move_finished_values(
+            product_id,
+            product_uom_qty,
+            product_uom,
+            operation_id,
+            byproduct_id,
+            cost_share,
+        )
+        # Add analytic distribution to the move values
+        if self.analytic_distribution:
+            res["analytic_distribution"] = self.analytic_distribution
+        return res
+
+    def _get_backorder_mo_vals(self):
+        """Override to preserve project_id and analytic_distribution in backorders."""
+        res = super()._get_backorder_mo_vals()
+        # Preserve project_id for backorders (if project_mrp is installed)
+        if hasattr(self, "project_id") and self.project_id:
+            res["project_id"] = self.project_id.id
+        # Preserve analytic distribution for backorders
+        if self.analytic_distribution:
+            res["analytic_distribution"] = self.analytic_distribution
         return res
 
     def action_view_analytic_accounts(self):
